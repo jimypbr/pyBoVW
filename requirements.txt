@@ -1,0 +1,6 @@
+numexpr==2.6.1
+numpy==1.11.1
+scikit-learn==0.17.1
+scipy==0.18.0
+sklearn==0.0
+tables==3.2.3.1
