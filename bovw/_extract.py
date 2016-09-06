@@ -3,6 +3,8 @@ import pyflann
 
 import cv2
 import numpy as np
+from joblib import Parallel, delayed
+from multiprocessing import cpu_count
 from scipy.sparse import lil_matrix
 
 
@@ -18,7 +20,7 @@ class _Codebook(object):
         self.__flann_params = self.__flann.build_index(self._clusters,
                                                        algorithm='autotuned',
                                                        target_precision=0.9,
-                                                       log_level='info')
+                                                       log_level='none')
 
     def predict(self, Xdesc):
         """
@@ -34,44 +36,51 @@ class _Codebook(object):
         return result
 
 
+def _rootsift_from_file(f):
+    """
+    Extract root sift descriptors from image stored in file f
+
+    :param: f : str or unicode filename
+    :return: desc : numpy array [n_sift_desc, 128]
+    """
+    img = cv2.imread(f)
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    sift = cv2.SIFT()
+    kp, desc = sift.detectAndCompute(img_gray, None)
+
+    if desc is None:
+        raise Exception('No SIFT features found in {}'.format(f))
+
+    desc /= (desc.sum(axis=1, keepdims=True) + 1e-7)
+    desc = np.sqrt(desc)
+
+    return desc
+
+
+def _term_counts(f, codebook):
+    """
+    Takes a list of SIFT vectors from an image and matches
+    each SIFT vector to its nearest equivalent in the codebook
+
+    :param: f : Image file path
+    :return: countvec : sparse vector of counts for each visual-word in the codebook
+    """
+    desc = _rootsift_from_file(f)
+    matches = codebook.predict(desc)
+    unique, counts = np.unique(matches, return_counts=True)
+
+    countvec = lil_matrix((1, codebook.n_clusters), dtype=np.int)
+    countvec[0, unique] = counts
+    return countvec
+
+
 class CountVectorizer(object):
-    def __init__(self, vocabulary_file):
+    def __init__(self, vocabulary_file, n_jobs=1):
         self._codebook = _Codebook(hdffile=vocabulary_file)
-
-    def _rootsift_from_file(self, f):
-        """
-        Extract root sift descriptors from image stored in file f
-
-        :param: f : str or unicode filename
-        :return: desc : numpy array [n_sift_desc, 128]
-        """
-        img = cv2.imread(f)
-        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        sift = cv2.SIFT()
-        kp, desc = sift.detectAndCompute(img_gray, None)
-
-        if desc is None:
-            raise Exception('No SIFT features found in {}'.format(f))
-
-        desc /= (desc.sum(axis=1, keepdims=True) + 1e-7)
-        desc = np.sqrt(desc)
-
-        return desc
-
-    def _term_counts(self, desc):
-        """
-        Takes a list of SIFT vectors from an image and matches
-        each SIFT vector to its nearest equivalent in the codebook
-
-        :param: desc : List of SIFT descriptors from a single image
-        :return: countvec : sparse vector of counts for each visual-word in the codebook
-        """
-        matches = self._codebook.predict(desc)
-        unique, counts = np.unique(matches, return_counts=True)
-
-        countvec = lil_matrix((1, self._codebook.n_clusters), dtype=np.int)
-        countvec[0, unique] = counts
-        return countvec
+        if n_jobs == -1:
+            self.n_jobs = cpu_count()
+        else:
+            self.n_jobs = n_jobs
 
     def transform(self, raw_images):
         """
@@ -81,11 +90,16 @@ class CountVectorizer(object):
         :return: X : sparse matrix, [n_images, n_visual_words]
                      visual-word count matrix
         """
+
+        sparse_rows = Parallel(backend='threading', n_jobs=self.n_jobs)(
+            (delayed(_term_counts)(f, self._codebook) for f in raw_images)
+        )
+
         X = lil_matrix((len(raw_images), self._codebook.n_clusters),
                        dtype=np.int)
 
-        for row, f in enumerate(raw_images):
-            X[row] = self._term_counts(self._rootsift_from_file(f))
+        for i, sparse_row in enumerate(sparse_rows):
+            X[i] = sparse_row
 
         return X.tocsr()
 
