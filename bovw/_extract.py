@@ -20,7 +20,7 @@ class _Codebook(object):
         self.__flann_params = self.__flann.build_index(self._clusters,
                                                        algorithm='autotuned',
                                                        target_precision=0.9,
-                                                       log_level='none')
+                                                       log_level=0)
 
     def predict(self, Xdesc):
         """
@@ -31,7 +31,7 @@ class _Codebook(object):
         (_, cm) = self._clusters.shape
         assert m == cm
 
-        result, dists = self.__flann.nn_index(Xdesc, num_neighbours=1,
+        result, dists = self.__flann.nn_index(Xdesc, num_neighbors=1,
                                               checks=self.__flann_params['checks'])
         return result
 
