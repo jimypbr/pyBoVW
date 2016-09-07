@@ -67,13 +67,13 @@ def _term_counts(f, codebook):
     :return: countvec : sparse vector of counts for each visual-word in the codebook
     """
     desc = _rootsift_from_file(f)
-    matches = codebook.predict(desc)
-
-    if matches is None:
+    if desc is None:
         # if no sift features found return 0 count vector
         return lil_matrix((1, codebook.n_clusters), dtype=np.int)
 
+    matches = codebook.predict(desc)
     unique, counts = np.unique(matches, return_counts=True)
+
     countvec = lil_matrix((1, codebook.n_clusters), dtype=np.int)
     countvec[0, unique] = counts
     return countvec
