@@ -49,7 +49,8 @@ def _rootsift_from_file(f):
     kp, desc = sift.detectAndCompute(img_gray, None)
 
     if desc is None:
-        raise Exception('No SIFT features found in {}'.format(f))
+        print('Warning: No SIFT features found in {}'.format(f))
+        return None
 
     desc /= (desc.sum(axis=1, keepdims=True) + 1e-7)
     desc = np.sqrt(desc)
@@ -67,8 +68,12 @@ def _term_counts(f, codebook):
     """
     desc = _rootsift_from_file(f)
     matches = codebook.predict(desc)
-    unique, counts = np.unique(matches, return_counts=True)
 
+    if matches is None:
+        # if no sift features found return 0 count vector
+        return lil_matrix((1, codebook.n_clusters), dtype=np.int)
+
+    unique, counts = np.unique(matches, return_counts=True)
     countvec = lil_matrix((1, codebook.n_clusters), dtype=np.int)
     countvec[0, unique] = counts
     return countvec
