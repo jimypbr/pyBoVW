@@ -36,7 +36,7 @@ class _Codebook(object):
         return result
 
 
-def _rootsift_from_file(f):
+def rootSIFT_descriptor(f):
     """
     Extract root sift descriptors from image stored in file f
 
@@ -66,7 +66,7 @@ def _term_counts(f, codebook):
     :param: f : Image file path
     :return: countvec : sparse vector of counts for each visual-word in the codebook
     """
-    desc = _rootsift_from_file(f)
+    desc = rootSIFT_descriptor(f)
     if desc is None:
         # if no sift features found return 0 count vector
         return lil_matrix((1, codebook.n_clusters), dtype=np.int)
