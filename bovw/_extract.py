@@ -1,11 +1,13 @@
-import tables
-import pyflann
-
 import cv2
+import tables
 import numpy as np
 from joblib import Parallel, delayed
 from multiprocessing import cpu_count
 from scipy.sparse import lil_matrix
+
+
+FLANN_INDEX_COMPOSITE = 3
+FLANN_DIST_L2 = 1
 
 
 class _Codebook(object):
@@ -16,11 +18,13 @@ class _Codebook(object):
 
         self._clusterids = np.array(xrange(0, self._clusters.shape[0]), dtype=np.int)
         self.n_clusters = self._clusters.shape[0]
-        self.__flann = pyflann.FLANN()
-        self.__flann_params = self.__flann.build_index(self._clusters,
-                                                       algorithm='autotuned',
-                                                       target_precision=0.9,
-                                                       log_level=0)
+
+        self._flann = cv2.flann_Index(self._clusters,
+                                      dict(algorithm=FLANN_INDEX_COMPOSITE,
+                                           distance=FLANN_DIST_L2,
+                                           iterations=10,
+                                           branching=16,
+                                           trees=50))
 
     def predict(self, Xdesc):
         """
@@ -31,8 +35,7 @@ class _Codebook(object):
         (_, cm) = self._clusters.shape
         assert m == cm
 
-        result, dists = self.__flann.nn_index(Xdesc, num_neighbors=1,
-                                              checks=self.__flann_params['checks'])
+        result, dists = self._flann.knnSearch(Xdesc, 1, params={})
         return result
 
 

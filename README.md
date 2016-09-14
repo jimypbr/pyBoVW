@@ -11,8 +11,7 @@ Python:
 * sklearn
 
 Non-Python:
-* Flann + pyFlann
-* OpenCV
+* OpenCV 2.4.13+
 
 ## License
 BSD
